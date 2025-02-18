@@ -18,41 +18,61 @@ class _HomePageState extends State<HomePage> {
   double time= 0;
   double gravity= -4.9; //how strong the gravity is
   double velocity = 3.5; //how strong the jump is
-  double birdWidth = 0.1;
-  double birdHeight = 0.1;
+  
+  static double birdWidth = 0.08;
+  static double birdHeight = 0.8;
+  static double barrierWidth = 0.5;
+  static double barrierHeight = 0.6;
 
+  
+  static double barrierXuno = 1;
+  double barrierXdos = barrierXuno + 1.5;
+  int puntuacion = 0;
   // game settings
   bool gameHasStarted = false;
 
-
-  //barrier variables
-  static List<double> barrierX = [2, 2 + 1.5];
-  static double barrierWidth = 0.5;
-  List<List<double>> barrierHeight = [
-    [0.6, 0.4],
-    [0.4, 0.6],
-  ];
+  void _checkScore() {
+    if ((barrierXuno < -birdWidth / 2 && barrierXuno > -birdWidth / 2 - 0.05) ||
+        (barrierXdos < -birdWidth / 2 && barrierXdos > -birdWidth / 2 - 0.05)) {
+      setState(() {
+        puntuacion++;
+      });
+    }
+  }
 
   void startGame() {
     gameHasStarted = true;
-    Timer.periodic(Duration(milliseconds: 80), (timer) {
+    Timer.periodic(Duration(milliseconds: 60), (timer) {
       //a real physical jump is the same as an upside down parabola
       //this is a simple quadratic equation
-
+      time += 0.05;
       height = gravity * time * time + velocity * time;
 
       setState(() {
         birdY = initialPos - height;
+        if (barrierXuno < -2) {
+          barrierXuno += 3.5;
+        } else {
+          barrierXuno -= 0.05;
+        }
+
+        if (barrierXdos < -2) {
+          barrierXdos += 3.5;
+        } else {
+          barrierXdos -= 0.05;
+        }
       });
 
+      //check score
+      _checkScore();
+
       //check if bird is dead
-      if (birdIsDead()) {
+      if (birdIsDead() || birdY > 1) {
         timer.cancel();
+        gameHasStarted = false;
         _showDialog();
       }
 
-      //keep the time going
-      time += 0.1;
     });
   }
 
@@ -60,9 +80,12 @@ void resetGame() {
   Navigator.pop(context);
   setState(() {
     birdY= 0;
+    barrierXuno = 1;
+    barrierXdos = barrierXuno + 1.5;
     gameHasStarted = false;
     time = 0;
     initialPos = birdY;
+    puntuacion = 0;
   });
 }
 
@@ -107,98 +130,128 @@ void jump() {
 }
 
 bool birdIsDead () {
-  //check if the bird is hitting the top or the bottom of the screen
-  if (birdY < -1 || birdY > 1){
-    return true;
-  }
-  // hits barriers
-  //check if the bird is within x coordinates and y coordinates of barriers
-  for (int i = 0; i < barrierX.length; i++) {
-    if (barrierX[i] <= birdWidth &&
-        barrierX[i] + barrierWidth >= -birdWidth &&
-        (birdY <= -1 + barrierHeight[i][0] ||
-          birdY + birdHeight >= 1 - barrierHeight[i][1])) {
-            return true;
-          }
-  }
+    // Definir los límites del pájaro
+    double birdLeft = -birdWidth / 2;
+    double birdRight = birdWidth / 2;
+    double birdTop = birdY - birdHeight / 2;
+    double birdBottom = birdY + birdHeight / 2;
 
-  return false;
-}
+    // Función para verificar colisión con un obstáculo
+    bool collisionWithBarrier(double barrierX, double barrierY) {
+      double barrierLeft = barrierX - barrierWidth / 2;
+      double barrierRight = barrierX + barrierWidth / 2;
+      double barrierTop = barrierY - barrierHeight / 2;
+      double barrierBottom = barrierY + barrierHeight / 2;
+
+      return birdRight > barrierLeft &&
+          birdLeft < barrierRight &&
+          birdBottom > barrierTop &&
+          birdTop < barrierBottom;
+    }
+
+    // Verificar colisión con cada obstáculo
+    if (collisionWithBarrier(barrierXuno, -1.1) || // Obstáculo superior 1
+        collisionWithBarrier(barrierXuno, 1.1) ||  // Obstáculo inferior 1
+        collisionWithBarrier(barrierXdos, -1.1) || // Obstáculo superior 2
+        collisionWithBarrier(barrierXdos, 1.1)) {  // Obstáculo inferior 2
+      return true; // Hay colisión
+    }
+
+    return false; // No hay colisión
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: gameHasStarted ? jump: startGame,
+      onTap: () {
+        if (gameHasStarted) {
+          jump();
+        } else {
+          startGame();
+        }
+      },
       child: Scaffold(
         body: Column(
           children: [
             Expanded(
-              flex: 3,
-              child: Container(
-                color: Colors.blue,
-                child: Center(
-                  child: Stack(
-                    children: [
-                      MyBird(
-                        birdY: birdY,
-                        birdWidth: birdWidth,
-                        birdHeight: birdHeight,
-                      ),
-                      // tap to play
-
-                      //top barrier 0
-                      MyBarrier(
-                        barrierX : barrierX[0],
-                        barrierWidth: barrierWidth,
-                        barrierHeight: barrierHeight[0][0],
-                        isThisBottomBarrier: false,
-                      ),
-
-                      //bottom barrier 0
-                      MyBarrier(
-                        barrierX: barrierX[0],
-                        barrierWidth: barrierWidth,
-                        barrierHeight: barrierHeight[0][0],
-                        isThisBottomBarrier: true,
-                      ),
-
-                      //top barrier 1
-                      MyBarrier(
-                        barrierX: barrierX[1],
-                        barrierWidth: barrierWidth,
-                        barrierHeight: barrierHeight[1][0],
-                        isThisBottomBarrier:  false,
-                      ),
-
-                      //bottom barrier 1
-                      MyBarrier(
-                        barrierX: barrierX[1],
-                        barrierWidth: barrierWidth,
-                        barrierHeight: barrierHeight[1][1],
-                        isThisBottomBarrier: true,
-                      ),
-
-                      Container(
-                        alignment: Alignment(0, -0.5),
-                        child: Text(
-                          gameHasStarted ? '': 'T A P  T O  P L A Y', 
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20
+              flex: 2,
+              child: Stack(
+                children: [
+                  AnimatedContainer(
+                    alignment: Alignment(0, birdY),
+                    duration: Duration(milliseconds: 0),
+                    color: Colors.blue,
+                    child: MyBird(),
+                  ),
+                  Container(
+                    alignment: Alignment(-0.3, -0.3),
+                    child: gameHasStarted
+                        ? Text("")
+                        : Text(
+                            "T A P  T O  P L A Y",
+                            style: TextStyle(
+                              fontSize: 25,
+                              color: Colors.white,
                             ),
-                          ))
-                    ],
+                          ),
                   ),
+                  // barriers
+                  AnimatedContainer(
+                    alignment: Alignment(barrierXuno, -1.1),
+                    duration: Duration(milliseconds: 0),
+                    child: MyBarrier(
+                      size: 200.0,
+                    ),
                   ),
-                ),
+                  AnimatedContainer(
+                    alignment: Alignment(barrierXuno, 1.1),
+                    duration: Duration(milliseconds: 0),
+                    child: MyBarrier(
+                      size: 200.0,
+                    ),
+                  ),
+                  AnimatedContainer(
+                    alignment: Alignment(barrierXdos, 1.1),
+                    duration: Duration(milliseconds: 0),
+                    child: MyBarrier(
+                      size: 150.0,
+                    ),
+                  ),
+                  AnimatedContainer(
+                    alignment: Alignment(barrierXdos, -1.1),
+                    duration: Duration(milliseconds: 0),
+                    child: MyBarrier(
+                      size: 250.0,
+                    ),
+                  ),
+                  Positioned(
+                    top: 50,
+                    right: 20,
+                    child: Text(
+                      'Score: $puntuacion',
+                      style: TextStyle(
+                        fontSize: 24,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: Container(
-                  color: Colors.brown,
+            ),
+            Container(
+              height: 15,
+              color: Colors.green,
+            ),
+            Expanded(
+              child: Container(
+                color: Colors.brown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                ),
               ),
             ),
           ],
-        )
+        ),
       ),
     );
   }
